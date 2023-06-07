@@ -41,7 +41,7 @@ public class AlertRabbit {
 
     public static Properties getProperties() {
         Properties config = new Properties();
-        try (InputStream in = new FileInputStream("./src/main/resources/rabbit.properties")) {
+        try (InputStream in = AlertRabbit.class.getClassLoader().getResourceAsStream("rabbit.properties")) {
             config.load(in);
         } catch (Exception e) {
             e.printStackTrace();
