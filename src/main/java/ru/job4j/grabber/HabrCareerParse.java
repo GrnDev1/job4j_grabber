@@ -12,8 +12,16 @@ import java.io.IOException;
 public class HabrCareerParse {
 
     private static final String SOURCE_LINK = "https://career.habr.com";
-
     private static final String PAGE_LINK = String.format("%s/vacancies/java_developer", SOURCE_LINK);
+
+    private String retrieveDescription(String link) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        Connection connection = Jsoup.connect(link);
+        Document document = connection.get();
+        Element body = document.select(".section-box").get(1).child(0);
+        builder.append(body.child(0).text() + "\n" + body.child(1).text());
+        return builder.toString();
+    }
 
     public static void main(String[] args) throws IOException {
         String tempLink;
