@@ -9,11 +9,18 @@ import ru.job4j.grabber.utils.DateTimeParser;
 import ru.job4j.grabber.utils.HabrCareerDateTimeParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class HabrCareerParse {
-
+public class HabrCareerParse implements Parse {
     private static final String SOURCE_LINK = "https://career.habr.com";
     private static final String PAGE_LINK = String.format("%s/vacancies/java_developer", SOURCE_LINK);
+
+    private final DateTimeParser dateTimeParser;
+
+    public HabrCareerParse(DateTimeParser dateTimeParser) {
+        this.dateTimeParser = dateTimeParser;
+    }
 
     private String retrieveDescription(String link) {
         StringBuilder builder = new StringBuilder();
@@ -28,26 +35,41 @@ public class HabrCareerParse {
         return builder.toString();
     }
 
-    public static void main(String[] args) throws IOException {
+    @Override
+    public List<Post> list(String link) {
+        List<Post> list = new ArrayList<>();
         String tempLink;
-        DateTimeParser parser = new HabrCareerDateTimeParser();
-        HabrCareerParse habrCareerParse = new HabrCareerParse();
-        for (int i = 1; i < 6; i++) {
-            System.out.printf("Page %s :%n", i);
-            tempLink = String.format("%s?page=%s", PAGE_LINK, i);
-            Connection connection = Jsoup.connect(tempLink);
-            Document document = connection.get();
-            Elements rows = document.select(".vacancy-card__inner");
-            rows.forEach(row -> {
-                Element titleElement = row.select(".vacancy-card__title").first();
-                Element linkElement = titleElement.child(0);
-                Element dateElement = row.select(".vacancy-card__date").first();
-                Element timeElement = dateElement.child(0);
-                String vacancyName = titleElement.text();
-                String link = String.format("%s%s", SOURCE_LINK, linkElement.attr("href"));
-                String time = timeElement.attr("dateTime");
-                System.out.printf("%s %s %s%n%s%n", vacancyName, link, parser.parse(time), habrCareerParse.retrieveDescription(link));
-            });
+        try {
+            for (int i = 1; i < 6; i++) {
+                tempLink = String.format("%s?page=%s", link, i);
+                Connection connection = Jsoup.connect(tempLink);
+                Document document = connection.get();
+                Elements rows = document.select(".vacancy-card__inner");
+                rows.forEach(row -> {
+                    Element titleElement = row.select(".vacancy-card__title").first();
+                    Element linkElement = titleElement.child(0);
+                    Element dateElement = row.select(".vacancy-card__date").first();
+                    Element timeElement = dateElement.child(0);
+                    String vacancyName = titleElement.text();
+                    String vacancyLink = String.format("%s%s", SOURCE_LINK, linkElement.attr("href"));
+                    String time = timeElement.attr("dateTime");
+                    Post tempPost = new Post();
+                    tempPost.setTitle(vacancyName);
+                    tempPost.setCreated(dateTimeParser.parse(time));
+                    tempPost.setDescription(this.retrieveDescription(vacancyLink));
+                    tempPost.setLink(vacancyLink);
+                    list.add(tempPost);
+                });
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+        return list;
+    }
+
+    public static void main(String[] args) {
+        HabrCareerParse habrCareerParse = new HabrCareerParse(new HabrCareerDateTimeParser());
+        List<Post> list = habrCareerParse.list(PAGE_LINK);
+        list.forEach(System.out::println);
     }
 }
