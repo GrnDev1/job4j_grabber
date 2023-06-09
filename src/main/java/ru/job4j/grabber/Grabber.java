@@ -5,6 +5,9 @@ import org.quartz.impl.StdSchedulerFactory;
 import ru.job4j.grabber.utils.HabrCareerDateTimeParser;
 
 import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Properties;
 
@@ -17,6 +20,7 @@ public class Grabber implements Grab {
     private final Store store;
     private final Scheduler scheduler;
     private final int time;
+    private static final Properties CONFIG = new Properties();
 
     public Grabber(Parse parse, Store store, Scheduler scheduler, int time) {
         this.parse = parse;
@@ -55,17 +59,39 @@ public class Grabber implements Grab {
         }
     }
 
+    public void web(Store store) {
+        new Thread(() -> {
+            try (ServerSocket server = new ServerSocket(Integer.parseInt(CONFIG.getProperty("port")))) {
+                while (!server.isClosed()) {
+                    Socket socket = server.accept();
+                    try (OutputStream out = socket.getOutputStream()) {
+                        out.write("HTTP/1.1 200 OK\r\n\r\n".getBytes());
+                        for (Post post : store.getAll()) {
+                            out.write(post.toString().getBytes(Charset.forName("Windows-1251")));
+                            out.write(System.lineSeparator().getBytes());
+                        }
+                    } catch (IOException io) {
+                        io.printStackTrace();
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
+    }
+
     public static void main(String[] args) throws Exception {
-        var cfg = new Properties();
         try (InputStream in = Grabber.class.getClassLoader()
                 .getResourceAsStream("rabbit.properties")) {
-            cfg.load(in);
+            CONFIG.load(in);
         }
         Scheduler scheduler = StdSchedulerFactory.getDefaultScheduler();
         scheduler.start();
         var parse = new HabrCareerParse(new HabrCareerDateTimeParser());
-        var store = new PsqlStore(cfg);
-        var time = Integer.parseInt(cfg.getProperty("rabbit.interval"));
-        new Grabber(parse, store, scheduler, time).init();
+        var store = new PsqlStore(CONFIG);
+        var time = Integer.parseInt(CONFIG.getProperty("rabbit.interval"));
+        Grabber grabber = new Grabber(parse, store, scheduler, time);
+        grabber.init();
+        grabber.web(store);
     }
 }
